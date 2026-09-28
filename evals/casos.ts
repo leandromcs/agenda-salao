@@ -195,8 +195,11 @@ CASOS.push(
   {
     nome: "serviço ausente: pergunta se quer adicionar",
     entrada: "marca a Joana amanhã às 10h, 1 hora",
+    // A ferramenta recusa marcar sem o campo servico; uma tentativa recusada não marca nada.
+    // O que importa: a resposta pergunta do serviço e não confirma marcação.
     verificar: (c, t) => {
-      if (alteracoes(c).length > 0) return "marcou sem perguntar do serviço";
+      if (de(c, "marcar").some((x) => typeof x.entrada.servico === "string")) return "marcou sem perguntar do serviço";
+      if (t.includes("✅")) return "confirmou marcação sem saber do serviço";
       return /servi[çc]o/i.test(t) ? null : "não perguntou do serviço";
     },
   },

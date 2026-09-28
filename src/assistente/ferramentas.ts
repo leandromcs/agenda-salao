@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type {
+  EntradaAtualizar,
   EntradaConsultar,
   EntradaDesmarcar,
   EntradaLivres,
@@ -86,13 +87,30 @@ export const FERRAMENTAS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "atualizar",
+    description:
+      "Edita um agendamento existente: nome da cliente, serviço, observação ou duração (o início não muda). Envie só os campos que mudam; texto vazio em servico ou observacao remove o campo. Para mudar data ou hora, use remarcar. Se a nova duração sobrepuser outro horário, NÃO altera e devolve os conflitos.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "integer", description: "id do agendamento (obtido em consultar_agenda)." },
+        cliente: { type: "string", description: "Opcional: nome corrigido." },
+        servico: { type: "string", description: "Opcional: novo serviço, ou texto vazio para remover." },
+        observacao: { type: "string", description: "Opcional: nova observação, ou texto vazio para remover." },
+        duracao_min: { type: "integer", description: "Opcional: nova duração em minutos, contada a partir do início atual." },
+        confirmado_sobreposicao: { type: "boolean", description: "true só depois que a dona confirmar a sobreposição." },
+      },
+      required: ["id"],
+    },
+  },
+  {
     name: "desfazer",
-    description: "Desfaz a última alteração (marcação, remarcação ou cancelamento) ainda não desfeita.",
+    description: "Desfaz a última alteração (marcação, remarcação, edição ou cancelamento) ainda não desfeita.",
     input_schema: { type: "object", properties: {} },
   },
 ];
 
-export const FERRAMENTAS_QUE_ALTERAM: ReadonlySet<string> = new Set(["marcar", "remarcar", "desmarcar", "desfazer"]);
+export const FERRAMENTAS_QUE_ALTERAM: ReadonlySet<string> = new Set(["marcar", "remarcar", "atualizar", "desmarcar", "desfazer"]);
 
 export async function executarFerramenta(agenda: OperacoesAgenda, nome: string, entrada: unknown): Promise<unknown> {
   const e = (typeof entrada === "object" && entrada !== null ? entrada : {}) as Record<string, unknown>;
@@ -105,6 +123,8 @@ export async function executarFerramenta(agenda: OperacoesAgenda, nome: string, 
       return await agenda.marcar(e as unknown as EntradaMarcar);
     case "remarcar":
       return await agenda.remarcar(e as unknown as EntradaRemarcar);
+    case "atualizar":
+      return await agenda.atualizar(e as unknown as EntradaAtualizar);
     case "desmarcar":
       return await agenda.desmarcar(e as unknown as EntradaDesmarcar);
     case "desfazer":

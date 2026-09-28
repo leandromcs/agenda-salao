@@ -11,16 +11,17 @@ function agendaFalsa(): OperacoesAgenda {
     remarcar: vi.fn(async () => ({ ok: false as const, erro: "x" })),
     desmarcar: vi.fn(async () => ({ ok: false as const, erro: "x" })),
     desfazer: vi.fn(async () => ({ ok: true as const, descricao: "feito" })),
+    atualizar: vi.fn(async () => ({ ok: false as const, erro: "x" })),
   };
 }
 
 describe("ferramentas", () => {
-  it("declara as seis ferramentas com schema de objeto", () => {
+  it("declara as sete ferramentas com schema de objeto", () => {
     expect(FERRAMENTAS.map((f) => f.name).sort()).toEqual(
-      ["consultar_agenda", "desfazer", "desmarcar", "horarios_livres", "marcar", "remarcar"],
+      ["atualizar", "consultar_agenda", "desfazer", "desmarcar", "horarios_livres", "marcar", "remarcar"],
     );
     for (const f of FERRAMENTAS) expect(f.input_schema.type).toBe("object");
-    expect([...FERRAMENTAS_QUE_ALTERAM].sort()).toEqual(["desfazer", "desmarcar", "marcar", "remarcar"]);
+    expect([...FERRAMENTAS_QUE_ALTERAM].sort()).toEqual(["atualizar", "desfazer", "desmarcar", "marcar", "remarcar"]);
   });
 
   it("encaminha cada ferramenta para a operação certa", async () => {
@@ -30,6 +31,8 @@ describe("ferramentas", () => {
     await executarFerramenta(a, "marcar", { cliente: "Ana" });
     await executarFerramenta(a, "remarcar", { id: 1 });
     await executarFerramenta(a, "desmarcar", { id: 1 });
+    await executarFerramenta(a, "atualizar", { id: 1, servico: "unha" });
+    expect(a.atualizar).toHaveBeenCalledWith({ id: 1, servico: "unha" });
     expect(await executarFerramenta(a, "desfazer", {})).toEqual({ ok: true, descricao: "feito" });
     expect(a.consultar).toHaveBeenCalledWith({ data_inicio: "2026-10-02", data_fim: "2026-10-02" });
     expect(a.livres).toHaveBeenCalledOnce();
@@ -69,5 +72,23 @@ describe("montarSistema", () => {
     const sistema = montarSistema({ agora: new Date("2026-09-28T13:00:00Z"), janelaInicio: "08:00", janelaFim: "20:00" });
     expect(sistema).toContain("próxima ocorrência futura");
     expect(sistema).toContain("já passou");
+  });
+});
+
+describe("regras novas do prompt", () => {
+  const sistema = montarSistema({ agora: new Date("2026-09-28T13:00:00Z"), janelaInicio: "08:00", janelaFim: "20:00" });
+
+  it("pergunta se quer adicionar o serviço quando ela não informar", () => {
+    expect(sistema).toContain("Quer adicionar o serviço?");
+  });
+
+  it("edita com atualizar em vez de desmarcar e marcar de novo", () => {
+    expect(sistema).toContain('"atualizar"');
+    expect(sistema).toContain("Nunca desmarque e marque de novo para editar");
+  });
+
+  it("permite marcar fora do horário padrão, repassando o aviso", () => {
+    expect(sistema).toContain("qualquer horário");
+    expect(sistema).toContain('"aviso"');
   });
 });

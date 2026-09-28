@@ -35,6 +35,7 @@ function montar(respostasClaude: (Anthropic.Message | Error)[]) {
     remarcar: vi.fn(async () => ({ ok: false as const, erro: "x" })),
     desmarcar: vi.fn(async () => ({ ok: false as const, erro: "x" })),
     desfazer: vi.fn(async () => ({ ok: false as const, erro: "x" })),
+    atualizar: vi.fn(async () => ({ ok: false as const, erro: "x" })),
   };
   const deps: DepsProcessamento = {
     historico: {

@@ -46,6 +46,7 @@ function agendaFalsa(): OperacoesAgenda {
     remarcar: vi.fn(async () => ({ ok: false as const, erro: "x" })),
     desmarcar: vi.fn(async () => ({ ok: false as const, erro: "x" })),
     desfazer: vi.fn(async () => ({ ok: false as const, erro: "nada" })),
+    atualizar: vi.fn(async () => ({ ok: false as const, erro: "x" })),
   };
 }
 
@@ -69,7 +70,7 @@ describe("responder", () => {
     expect(p.model).toBe("claude-haiku-4-5");
     expect(p.system).toBe("SISTEMA");
     expect(p.messages).toEqual([{ role: "user", content: "marca a Ana" }]);
-    expect(p.tools?.length).toBe(6);
+    expect(p.tools?.length).toBe(7);
   });
 
   it("inclui o histórico completo (com as chamadas de ferramenta) antes da entrada", async () => {

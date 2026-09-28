@@ -75,4 +75,23 @@ describe("AgendaRepositorio", () => {
     const reativada = await repo.desfazer((await repo.ultimaAlteracaoPendente())!, AGORA);
     expect(reativada.situacao).toBe("marcado");
   });
+
+  it("atualiza campos guardando o estado anterior, e desfazer restaura tudo", async () => {
+    const a = await repo.marcar({ ...novo("Maria", "2026-09-29", "22:00", "23:00"), servico: null }, AGORA);
+    const r = await repo.atualizar(
+      a.id,
+      { cliente: "Maria Souza", servico: "unha", observacao: "cliente nova", fim: iso("2026-09-29", "23:30") },
+      a,
+      AGORA,
+    );
+    expect(r).toMatchObject({ cliente: "Maria Souza", servico: "unha", observacao: "cliente nova", fim: iso("2026-09-29", "23:30") });
+    expect((await repo.ultimaAlteracaoPendente())?.acao).toBe("atualizar");
+    // a busca sem acento/caixa acompanha o nome novo
+    const achados = await repo.listarEntre(iso("2026-09-29", "00:00"), iso("2026-09-30", "00:00"), "souza");
+    expect(achados.map((x) => x.id)).toEqual([a.id]);
+
+    const volta = await repo.desfazer((await repo.ultimaAlteracaoPendente())!, AGORA);
+    expect(volta).toMatchObject({ cliente: "Maria", servico: null, observacao: null, fim: iso("2026-09-29", "23:00") });
+    expect(await repo.listarEntre(iso("2026-09-29", "00:00"), iso("2026-09-30", "00:00"), "souza")).toEqual([]);
+  });
 });

@@ -191,6 +191,74 @@ export const CASOS: Caso[] = [
   },
 ];
 
+CASOS.push(
+  {
+    nome: "serviço ausente: pergunta se quer adicionar",
+    entrada: "marca a Joana amanhã às 10h, 1 hora",
+    verificar: (c, t) => {
+      if (alteracoes(c).length > 0) return "marcou sem perguntar do serviço";
+      return /servi[çc]o/i.test(t) ? null : "não perguntou do serviço";
+    },
+  },
+  {
+    nome: "editar serviço usa atualizar",
+    agenda: [
+      { cliente: "Maria", inicio: iso("2026-09-29", "22:00"), fim: iso("2026-09-30", "00:00"), servico: null, observacao: null, tipo: "atendimento" },
+    ],
+    entrada: "coloca unha como serviço da Maria de amanhã às 22h",
+    verificar: (c) => {
+      if (de(c, "desmarcar").length || de(c, "marcar").length) return "desmarcou/marcou em vez de editar";
+      const a = de(c, "atualizar")[0]?.entrada;
+      return a && /unha/i.test(String(a.servico)) ? null : `atualizar com ${JSON.stringify(a)}`;
+    },
+  },
+  {
+    nome: "fora do horário padrão: marca e avisa",
+    entrada: "marca a Maria amanhã às 22h, 2 horas, sem serviço",
+    verificar: (c, t) => {
+      const m = de(c, "marcar")[0]?.entrada;
+      if (m?.hora !== "22:00") return `marcar com ${JSON.stringify(m)}`;
+      return /⚠️|fora do hor/i.test(t) ? null : "não avisou que está fora do horário padrão";
+    },
+  },
+);
+
+export interface Roteiro {
+  nome: string;
+  agenda?: NovoAgendamento[];
+  /** Mensagens dela, em ordem; o histórico vai sendo montado com os turnos reais. */
+  passos: string[];
+  /** Confere a agenda no fim (só os marcados). Devolve null se passou. */
+  verificar(marcados: { cliente: string; inicio: string; fim: string; servico: string | null }[]): string | null;
+}
+
+export const ROTEIROS: Roteiro[] = [
+  {
+    // A conversa real do piloto de 2026-09-28, em que só a primeira marcação chegou ao banco.
+    nome: "roteiro do piloto",
+    passos: [
+      "Marca a Joana amanhã às 10h, 1 hora, sem serviço",
+      "Carla amanhã 10h30 unha 45 min",
+      "Não. Marque para às 11h então",
+      "[Áudio transcrito] Passa a Carla para amanhã às 14 horas.",
+      "Sim",
+      "Marque a Maria amanhã às 22h, 2 horas, sem serviço",
+      "Coloca unha como serviço da Maria das 22h",
+      "Cancele o atendimento da Joana",
+      "Sim",
+    ],
+    verificar: (marcados) => {
+      const resumo = marcados.map((a) => `${a.cliente} ${a.inicio.slice(11, 16)}-${a.fim.slice(11, 16)} ${a.servico ?? "-"}`).sort();
+      const esperado = ["Carla 14:00-14:45 unha", "Maria 22:00-00:00 unha"];
+      const ok =
+        resumo.length === 2 &&
+        /^Carla 14:00-14:45 unha/i.test(resumo[0]!) &&
+        /^Maria 22:00-00:00 .*unha/i.test(resumo[1]!);
+      return ok ? null : `agenda final ${JSON.stringify(resumo)}, esperado ${JSON.stringify(esperado)}`;
+    },
+  },
+];
+
 function verificarCarla11h(c: Chamada[]): string | null {
   const m = de(c, "marcar")[0]?.entrada;
   if (!m) return "não chamou marcar";

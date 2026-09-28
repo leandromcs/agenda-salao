@@ -73,12 +73,25 @@ export interface EntradaRemarcar {
 export interface EntradaDesmarcar {
   id: number;
 }
+/** Campos ausentes ficam como estão; texto vazio em servico/observacao remove o campo. */
+export interface EntradaAtualizar {
+  id: number;
+  cliente?: string;
+  servico?: string;
+  observacao?: string;
+  duracao_min?: number;
+  confirmado_sobreposicao?: boolean;
+}
+
+/** Presente quando o horário cai fora da janela padrão: marca mesmo assim, mas avisa. */
+export type Aviso = { aviso?: string };
 
 export interface OperacoesAgenda {
   consultar(e: EntradaConsultar): Promise<Resultado<{ agendamentos: AgendamentoResumo[] }>>;
   livres(e: EntradaLivres): Promise<Resultado<{ livres: { inicio: string; fim: string }[] }>>;
-  marcar(e: EntradaMarcar): Promise<Resultado<{ agendamento: AgendamentoResumo }>>;
-  remarcar(e: EntradaRemarcar): Promise<Resultado<{ agendamento: AgendamentoResumo; antes: AgendamentoResumo }>>;
+  marcar(e: EntradaMarcar): Promise<Resultado<{ agendamento: AgendamentoResumo } & Aviso>>;
+  remarcar(e: EntradaRemarcar): Promise<Resultado<{ agendamento: AgendamentoResumo; antes: AgendamentoResumo } & Aviso>>;
+  atualizar(e: EntradaAtualizar): Promise<Resultado<{ agendamento: AgendamentoResumo; antes: AgendamentoResumo } & Aviso>>;
   desmarcar(e: EntradaDesmarcar): Promise<Resultado<{ agendamento: AgendamentoResumo }>>;
   desfazer(): Promise<Resultado<{ descricao: string }>>;
 }
@@ -183,10 +196,16 @@ export class AgendaServico implements OperacoesAgenda {
       { cliente, inicio, fim, servico: textoOpcional(e.servico), observacao: textoOpcional(e.observacao), tipo },
       this.agora(),
     );
-    return { ok: true, agendamento: resumir(criado) };
+    return { ok: true, agendamento: resumir(criado), ...this.avisoJanela(inicio, fim) };
   }
 
-  async remarcar(e: EntradaRemarcar): Promise<Resultado<{ agendamento: AgendamentoResumo; antes: AgendamentoResumo }>> {
+  /** Horário fora da janela padrão não é proibido (ela decide), mas vale avisar: pode ser erro de digitação. */
+  private avisoJanela(inicio: string, fim: string): Aviso {
+    const fora = horaDe(inicio) < this.config.janelaInicio || fim > paraIso(dataDe(inicio), this.config.janelaFim);
+    return fora ? { aviso: `Fora do horário padrão (${this.config.janelaInicio}–${this.config.janelaFim}).` } : {};
+  }
+
+  async remarcar(e: EntradaRemarcar): Promise<Resultado<{ agendamento: AgendamentoResumo; antes: AgendamentoResumo } & Aviso>> {
     if (!Number.isInteger(e.id)) return falha("id inválido.");
     const atual = await this.repo.buscar(e.id);
     if (!atual || atual.situacao !== "marcado") return falha("Agendamento não encontrado ou já cancelado. Consulte a agenda de novo.");
@@ -203,7 +222,50 @@ export class AgendaServico implements OperacoesAgenda {
       }
     }
     const novo = await this.repo.remarcar(atual.id, inicio, fim, atual, this.agora());
-    return { ok: true, agendamento: resumir(novo), antes: resumir(atual) };
+    return { ok: true, agendamento: resumir(novo), antes: resumir(atual), ...this.avisoJanela(inicio, fim) };
+  }
+
+  async atualizar(e: EntradaAtualizar): Promise<Resultado<{ agendamento: AgendamentoResumo; antes: AgendamentoResumo } & Aviso>> {
+    if (!Number.isInteger(e.id)) return falha("id inválido.");
+    const atual = await this.repo.buscar(e.id);
+    if (!atual || atual.situacao !== "marcado") return falha("Agendamento não encontrado ou já cancelado. Consulte a agenda de novo.");
+    if (e.cliente === undefined && e.servico === undefined && e.observacao === undefined && e.duracao_min === undefined) {
+      return falha("Informe o que mudar: cliente, servico, observacao ou duracao_min. Para mudar data ou hora, use remarcar.");
+    }
+
+    let cliente = atual.cliente;
+    if (e.cliente !== undefined) {
+      const novoNome = textoOpcional(e.cliente);
+      if (!novoNome) return falha("O nome da cliente não pode ficar vazio.");
+      if (novoNome.length > 100) return falha("Nome muito longo (máximo 100 caracteres).");
+      cliente = novoNome;
+    }
+
+    let fim = atual.fim;
+    if (e.duracao_min !== undefined) {
+      const erro = erroDuracao(e.duracao_min);
+      if (erro) return falha(erro);
+      fim = somarMinutos(atual.inicio, e.duracao_min);
+      if (e.confirmado_sobreposicao !== true) {
+        const choques = conflitos({ inicio: atual.inicio, fim }, await this.repo.listarEntre(atual.inicio, fim), atual.id);
+        if (choques.length > 0) {
+          return falha("Sobreposição: NÃO alterei. Pergunte se deve alterar mesmo assim.", choques.map(resumir));
+        }
+      }
+    }
+
+    const novo = await this.repo.atualizar(
+      atual.id,
+      {
+        cliente,
+        servico: e.servico !== undefined ? textoOpcional(e.servico) : atual.servico,
+        observacao: e.observacao !== undefined ? textoOpcional(e.observacao) : atual.observacao,
+        fim,
+      },
+      atual,
+      this.agora(),
+    );
+    return { ok: true, agendamento: resumir(novo), antes: resumir(atual), ...this.avisoJanela(novo.inicio, novo.fim) };
   }
 
   async desmarcar(e: EntradaDesmarcar): Promise<Resultado<{ agendamento: AgendamentoResumo }>> {
@@ -224,7 +286,9 @@ export class AgendaServico implements OperacoesAgenda {
         ? `Cancelei a marcação de ${r.cliente} (${quando}).`
         : alteracao.acao === "remarcar"
           ? `${r.cliente} voltou para ${quando}.`
-          : `${r.cliente} voltou a estar marcada (${quando}).`;
+          : alteracao.acao === "atualizar"
+            ? `Desfiz a edição: ${r.cliente} voltou a ${quando}, ${r.servico ?? "sem serviço"}.`
+            : `${r.cliente} voltou a estar marcada (${quando}).`;
     return { ok: true, descricao };
   }
 }

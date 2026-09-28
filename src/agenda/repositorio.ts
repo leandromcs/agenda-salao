@@ -15,11 +15,20 @@ export interface NovoAgendamento {
   tipo: TipoAgendamento;
 }
 
+/** Valores finais (já combinados com os atuais) dos campos que "atualizar" pode mudar. */
+export interface CamposEditaveis {
+  cliente: string;
+  servico: string | null;
+  observacao: string | null;
+  fim: string;
+}
+
 export interface RepositorioAgenda {
   listarEntre(de: string, ate: string, nome?: string): Promise<Agendamento[]>;
   buscar(id: number): Promise<Agendamento | null>;
   marcar(novo: NovoAgendamento, agora: string): Promise<Agendamento>;
   remarcar(id: number, inicio: string, fim: string, antes: Agendamento, agora: string): Promise<Agendamento>;
+  atualizar(id: number, campos: CamposEditaveis, antes: Agendamento, agora: string): Promise<Agendamento>;
   desmarcar(id: number, antes: Agendamento, agora: string): Promise<Agendamento>;
   ultimaAlteracaoPendente(): Promise<Alteracao | null>;
   desfazer(alteracao: Alteracao, agora: string): Promise<Agendamento>;
@@ -89,6 +98,21 @@ export class AgendaRepositorio implements RepositorioAgenda {
     return primeiro(atualizado);
   }
 
+  async atualizar(id: number, campos: CamposEditaveis, antes: Agendamento, agora: string): Promise<Agendamento> {
+    const [atualizado] = await this.db.batch<Agendamento>([
+      this.db
+        .prepare(
+          `UPDATE agendamentos SET cliente = ?1, cliente_busca = ?2, servico = ?3, observacao = ?4, fim = ?5, atualizado_em = ?6
+           WHERE id = ?7 RETURNING ${COLUNAS}`,
+        )
+        .bind(campos.cliente, normalizarBusca(campos.cliente), campos.servico, campos.observacao, campos.fim, agora, id),
+      this.db
+        .prepare("INSERT INTO alteracoes (agendamento_id, acao, antes, criado_em) VALUES (?1, 'atualizar', ?2, ?3)")
+        .bind(id, JSON.stringify(antes), agora),
+    ]);
+    return primeiro(atualizado);
+  }
+
   async ultimaAlteracaoPendente(): Promise<Alteracao | null> {
     return await this.db
       .prepare("SELECT * FROM alteracoes WHERE desfeita = 0 ORDER BY id DESC LIMIT 1")
@@ -101,11 +125,24 @@ export class AgendaRepositorio implements RepositorioAgenda {
       reverter = this.db
         .prepare(`UPDATE agendamentos SET situacao = 'cancelado', atualizado_em = ?1 WHERE id = ?2 RETURNING ${COLUNAS}`)
         .bind(agora, alteracao.agendamento_id);
-    } else if (alteracao.acao === "remarcar") {
+    } else if (alteracao.acao === "remarcar" || alteracao.acao === "atualizar") {
+      // Restaura tudo o que essas ações podem mudar, a partir da foto de antes.
       const antes = JSON.parse(alteracao.antes ?? "{}") as Agendamento;
       reverter = this.db
-        .prepare(`UPDATE agendamentos SET inicio = ?1, fim = ?2, atualizado_em = ?3 WHERE id = ?4 RETURNING ${COLUNAS}`)
-        .bind(antes.inicio, antes.fim, agora, alteracao.agendamento_id);
+        .prepare(
+          `UPDATE agendamentos SET cliente = ?1, cliente_busca = ?2, servico = ?3, observacao = ?4, inicio = ?5, fim = ?6,
+           atualizado_em = ?7 WHERE id = ?8 RETURNING ${COLUNAS}`,
+        )
+        .bind(
+          antes.cliente,
+          normalizarBusca(antes.cliente),
+          antes.servico,
+          antes.observacao,
+          antes.inicio,
+          antes.fim,
+          agora,
+          alteracao.agendamento_id,
+        );
     } else {
       reverter = this.db
         .prepare(`UPDATE agendamentos SET situacao = 'marcado', atualizado_em = ?1 WHERE id = ?2 RETURNING ${COLUNAS}`)

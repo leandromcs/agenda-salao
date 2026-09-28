@@ -17,7 +17,7 @@ export interface Agendamento extends Intervalo {
   atualizado_em: string;
 }
 
-export type Acao = "marcar" | "remarcar" | "desmarcar";
+export type Acao = "marcar" | "remarcar" | "desmarcar" | "atualizar";
 
 export interface Alteracao {
   id: number;

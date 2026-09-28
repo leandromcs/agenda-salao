@@ -96,4 +96,62 @@ describe("AgendaServico", () => {
     expect(hoje).toEqual({ ok: true, livres: [{ inicio: "10:00", fim: "20:00" }] });
     expect(await s.livres({ data: "2026-09-27", duracao_min: 60 })).toEqual({ ok: true, livres: [] });
   });
+
+  describe("atualizar", () => {
+    async function maria() {
+      const m = await s.marcar({ cliente: "Maria", data: "2026-10-02", hora: "15:00", duracao_min: 60 });
+      if (!m.ok) throw new Error("setup");
+      return m.agendamento.id;
+    }
+
+    it("edita serviço, observação e nome; texto vazio remove o campo", async () => {
+      const id = await maria();
+      const r = await s.atualizar({ id, servico: "unha", observacao: "traz esmalte", cliente: "Maria Souza" });
+      expect(r).toMatchObject({ ok: true, agendamento: { cliente: "Maria Souza", servico: "unha" }, antes: { cliente: "Maria", servico: null } });
+      const limpo = await s.atualizar({ id, servico: "" });
+      expect(limpo).toMatchObject({ ok: true, agendamento: { servico: null } });
+    });
+
+    it("muda a duração mantendo o início e avisa sobreposição", async () => {
+      const id = await maria();
+      await s.marcar({ cliente: "Ana", data: "2026-10-02", hora: "16:30", duracao_min: 60 });
+      expect(await s.atualizar({ id, duracao_min: 90 })).toMatchObject({ ok: true, agendamento: { inicio: "15:00", fim: "16:30" } });
+      expect(await s.atualizar({ id, duracao_min: 120 })).toMatchObject({ ok: false, conflitos: [{ cliente: "Ana" }] });
+      expect(await s.atualizar({ id, duracao_min: 120, confirmado_sobreposicao: true })).toMatchObject({ ok: true });
+    });
+
+    it("recusa sem campos, nome vazio ou id inexistente", async () => {
+      const id = await maria();
+      expect(await s.atualizar({ id })).toMatchObject({ ok: false });
+      expect(await s.atualizar({ id, cliente: "  " })).toMatchObject({ ok: false });
+      expect(await s.atualizar({ id: 999, servico: "unha" })).toMatchObject({ ok: false });
+    });
+
+    it("desfazer uma edição conta o que voltou", async () => {
+      const id = await maria();
+      await s.atualizar({ id, servico: "unha" });
+      expect(await s.desfazer()).toEqual({ ok: true, descricao: "Desfiz a edição: Maria voltou a sex 02/10 15:00–16:00, sem serviço." });
+    });
+  });
+
+  describe("fora do horário padrão", () => {
+    it("marca normalmente e devolve um aviso", async () => {
+      const r = await s.marcar({ cliente: "Maria", data: "2026-10-02", hora: "22:00", duracao_min: 120 });
+      expect(r).toMatchObject({ ok: true, agendamento: { inicio: "22:00", fim: "00:00" }, aviso: "Fora do horário padrão (08:00–20:00)." });
+    });
+
+    it("não avisa dentro da janela, inclusive terminando exatamente no fim", async () => {
+      const r = await s.marcar({ cliente: "Ana", data: "2026-10-02", hora: "19:00", duracao_min: 60 });
+      expect(r.ok && "aviso" in r).toBe(false);
+    });
+
+    it("remarcar para fora da janela também avisa", async () => {
+      const m = await s.marcar({ cliente: "Ana", data: "2026-10-02", hora: "10:00", duracao_min: 60 });
+      if (!m.ok) throw new Error("setup");
+      expect(await s.remarcar({ id: m.agendamento.id, data: "2026-10-02", hora: "07:00" })).toMatchObject({
+        ok: true,
+        aviso: "Fora do horário padrão (08:00–20:00).",
+      });
+    });
+  });
 });

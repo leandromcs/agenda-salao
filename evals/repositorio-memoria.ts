@@ -1,4 +1,4 @@
-import type { NovoAgendamento, RepositorioAgenda } from "../src/agenda/repositorio";
+import type { CamposEditaveis, NovoAgendamento, RepositorioAgenda } from "../src/agenda/repositorio";
 import { normalizarBusca } from "../src/agenda/repositorio";
 import type { Agendamento, Alteracao } from "../src/agenda/tipos";
 
@@ -33,6 +33,18 @@ export class RepositorioMemoria implements RepositorioAgenda {
     return { ...a };
   }
 
+  async atualizar(id: number, campos: CamposEditaveis, antes: Agendamento, agora: string): Promise<Agendamento> {
+    const a = this.pegar(id);
+    Object.assign(a, { ...campos, atualizado_em: agora });
+    this.registrar(id, "atualizar", JSON.stringify(antes), agora);
+    return { ...a };
+  }
+
+  /** Todos os marcados, para conferir o estado final da agenda nos roteiros. */
+  todosMarcados(): Agendamento[] {
+    return this.agendamentos.filter((a) => a.situacao === "marcado").map((a) => ({ ...a }));
+  }
+
   async desmarcar(id: number, antes: Agendamento, agora: string): Promise<Agendamento> {
     const a = this.pegar(id);
     Object.assign(a, { situacao: "cancelado", atualizado_em: agora });
@@ -51,8 +63,13 @@ export class RepositorioMemoria implements RepositorioAgenda {
     else if (alteracao.acao === "desmarcar") a.situacao = "marcado";
     else {
       const antes = JSON.parse(alteracao.antes ?? "{}") as Agendamento;
-      a.inicio = antes.inicio;
-      a.fim = antes.fim;
+      Object.assign(a, {
+        cliente: antes.cliente,
+        servico: antes.servico,
+        observacao: antes.observacao,
+        inicio: antes.inicio,
+        fim: antes.fim,
+      });
     }
     a.atualizado_em = agora;
     this.alteracoes.find((x) => x.id === alteracao.id)!.desfeita = 1;

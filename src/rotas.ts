@@ -1,11 +1,15 @@
 import { Historico } from "./conversa/historico";
 import type { Env } from "./env";
+import { PAGINA_PRIVACIDADE } from "./privacidade";
 import { extrairMensagens, mesmoNumero, verificarAssinatura } from "./whatsapp/webhook";
 
 export type EnvRotas = Pick<Env, "DB" | "FILA" | "WEBHOOK_VERIFY_TOKEN" | "WHATSAPP_APP_SECRET" | "NUMERO_DELA">;
 
 export async function tratarRequisicao(request: Request, env: EnvRotas, agora: Date = new Date()): Promise<Response> {
   const url = new URL(request.url);
+  if (url.pathname === "/privacidade" && request.method === "GET") {
+    return new Response(PAGINA_PRIVACIDADE, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
   if (url.pathname !== "/webhook") return new Response("Não encontrado", { status: 404 });
 
   if (request.method === "GET") {

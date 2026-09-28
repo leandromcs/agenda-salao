@@ -65,6 +65,15 @@ describe("tratarRequisicao", () => {
     expect((await tratarRequisicao(new Request("https://agenda.example/"), env)).status).toBe(404);
   });
 
+  it("serve a política de privacidade exigida pela Meta para publicar o app", async () => {
+    const r = await tratarRequisicao(new Request("https://agenda.example/privacidade"), env);
+    expect(r.status).toBe(200);
+    expect(r.headers.get("Content-Type")).toContain("text/html");
+    const html = await r.text();
+    expect(html).toContain("Política de Privacidade");
+    expect(html).toContain("Anthropic");
+  });
+
   it("recusa assinatura inválida", async () => {
     expect((await post(env, corpo([texto("w1")]), "sha256=00")).status).toBe(401);
     expect(enviadas).toEqual([]);

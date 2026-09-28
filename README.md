@@ -115,3 +115,7 @@ Com 10 a 30 interações por dia: cerca de R$ 15–40/mês no modelo, hospedagem
 ## Privacidade
 
 O Worker publica a política de privacidade em `/privacidade`, exigida pela Meta para publicar o app. O telefone das clientes não é armazenado.
+
+## Licença
+
+[MIT](LICENSE)

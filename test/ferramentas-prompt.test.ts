@@ -64,4 +64,10 @@ describe("montarSistema", () => {
     expect(sistema).toContain("[Mensagem encaminhada de uma cliente]");
     expect(sistema).toContain("[Áudio transcrito]");
   });
+
+  it("pede a próxima ocorrência futura e confirma horário de hoje que já passou", () => {
+    const sistema = montarSistema({ agora: new Date("2026-09-28T13:00:00Z"), janelaInicio: "08:00", janelaFim: "20:00" });
+    expect(sistema).toContain("próxima ocorrência futura");
+    expect(sistema).toContain("já passou");
+  });
 });

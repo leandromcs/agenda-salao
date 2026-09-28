@@ -16,6 +16,8 @@ export interface OpcoesLivres {
   janelaFim: string;
   faixaInicio?: string;
   faixaFim?: string;
+  /** Instante (ISO) antes do qual nada é oferecido — "agora", para não sugerir horário que já passou. */
+  aPartirDe?: string;
 }
 
 function ordemPorInicio(a: Intervalo, b: Intervalo): number {
@@ -30,6 +32,8 @@ export function horariosLivres(opcoes: OpcoesLivres, ocupados: Intervalo[]): Int
 
   const limite = paraIso(opcoes.data, fimHora);
   let cursor = paraIso(opcoes.data, inicioHora);
+  if (opcoes.aPartirDe && opcoes.aPartirDe > cursor) cursor = opcoes.aPartirDe;
+  if (cursor >= limite) return [];
   const relevantes = ocupados
     .filter((o) => sobrepoe(o, { inicio: cursor, fim: limite }))
     .sort(ordemPorInicio);

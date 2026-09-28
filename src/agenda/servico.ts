@@ -1,4 +1,5 @@
 import {
+  agoraIso,
   dataCurta,
   dataDe,
   dataValida,
@@ -155,6 +156,7 @@ export class AgendaServico implements OperacoesAgenda {
         janelaFim: this.config.janelaFim,
         faixaInicio: e.faixa_inicio,
         faixaFim: e.faixa_fim,
+        aPartirDe: agoraIso(this.relogio()),
       },
       ocupados,
     );

@@ -89,4 +89,11 @@ describe("AgendaServico", () => {
     const r = await s.livres({ data: "2026-10-02", duracao_min: 60, faixa_inicio: "08:00", faixa_fim: "12:00" });
     expect(r).toEqual({ ok: true, livres: [{ inicio: "08:00", fim: "10:00" }, { inicio: "11:00", fim: "12:00" }] });
   });
+
+  it("horários livres de hoje começam agora, e dias passados não têm horário livre", async () => {
+    // relógio: 2026-09-28 10:00 em Brasília
+    const hoje = await s.livres({ data: "2026-09-28", duracao_min: 60 });
+    expect(hoje).toEqual({ ok: true, livres: [{ inicio: "10:00", fim: "20:00" }] });
+    expect(await s.livres({ data: "2026-09-27", duracao_min: 60 })).toEqual({ ok: true, livres: [] });
+  });
 });

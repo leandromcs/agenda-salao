@@ -72,4 +72,13 @@ describe("horariosLivres", () => {
   it("faixa fora da janela não devolve nada", () => {
     expect(horariosLivres({ ...base, duracaoMin: 30, faixaInicio: "21:00", faixaFim: "22:00" }, [])).toEqual([]);
   });
+
+  it("não oferece horários antes do instante informado", () => {
+    const ocupados = [ag(1, "11:00", "12:00")];
+    expect(horas(horariosLivres({ ...base, duracaoMin: 30, aPartirDe: iso("10:20") }, ocupados))).toEqual([
+      "10:20-11:00",
+      "12:00-20:00",
+    ]);
+    expect(horariosLivres({ ...base, duracaoMin: 30, aPartirDe: iso("20:30") }, [])).toEqual([]);
+  });
 });

@@ -9,8 +9,8 @@
     {
       "binding": "DB",
       "database_name": "agenda-salao",
-      // Substituído pelo id real na Tarefa 15 (saída de `wrangler d1 create`).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Criado com `wrangler d1 create agenda-salao`.
+      "database_id": "5fcdc5f8-88db-4c43-8f2a-3c50d010fcfb",
       "migrations_dir": "migrations"
     }
   ],

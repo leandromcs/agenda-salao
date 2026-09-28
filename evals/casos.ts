@@ -101,7 +101,10 @@ export const CASOS: Caso[] = [
   {
     nome: "encaminhada sem nome não marca",
     entrada: `${PREFIXO_ENCAMINHADA}\nOi! Tem horário sexta à tarde pra escova?`,
-    verificar: (c, t) => (alteracoes(c).length === 0 && t.includes("?") ? null : "marcou ou não perguntou"),
+    verificar: (c, t) => {
+      if (alteracoes(c).length > 0) return "marcou antes de a dona escolher";
+      return t.includes("?") || /nome/i.test(t) ? null : "não pediu o nome da cliente";
+    },
   },
   {
     nome: "bloqueio do dia todo",

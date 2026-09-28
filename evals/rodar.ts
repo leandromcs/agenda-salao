@@ -28,7 +28,10 @@ for (const caso of CASOS) {
   const erro = caso.verificar(r.chamadas as Chamada[], r.texto);
   if (erro) falhas++;
   console.log(`${erro ? "❌" : "✅"} ${caso.nome}${erro ? ` — ${erro}` : ""}`);
-  if (erro) console.log(`   resposta: ${r.texto.replace(/\n/g, " ⏎ ")}`);
+  if (erro) {
+    console.log(`   ferramentas: ${r.chamadas.map((c) => c.nome).join(", ") || "(nenhuma)"}`);
+    console.log(`   resposta: ${r.texto.replace(/\n/g, " ⏎ ")}`);
+  }
 }
 
 console.log(`\n${CASOS.length - falhas}/${CASOS.length} casos passaram com ${MODELO}.`);

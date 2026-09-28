@@ -229,6 +229,21 @@ CASOS.push(
   },
 );
 
+CASOS.push({
+  // Rodada 1 do piloto: depois de confirmar um áudio confuso, perguntou "Certo?" de novo.
+  nome: "áudio confuso: um sim basta para remarcar",
+  agenda: [{ ...at("Bia", "2026-09-29", "09:00", "10:00"), servico: "Escova" }],
+  historico: [
+    { role: "user", content: "[Áudio transcrito] Passa a beia para as duas da tarde." },
+    { role: "assistant", content: "A transcrição ficou confusa. Você quer remarcar a Bia de amanhã (09:00) para as 14h (duas da tarde)? É isso?" },
+  ],
+  entrada: "Sim",
+  verificar: (c) => {
+    const r = de(c, "remarcar")[0]?.entrada;
+    return r?.hora === "14:00" ? null : "pediu confirmação de novo em vez de remarcar";
+  },
+});
+
 export interface Roteiro {
   nome: string;
   agenda?: NovoAgendamento[];

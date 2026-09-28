@@ -105,4 +105,8 @@ describe("regras novas do prompt", () => {
     expect(sistema).toContain("qualquer horário");
     expect(sistema).toContain('"aviso"');
   });
+
+  it("pede confirmação uma vez só", () => {
+    expect(sistema).toContain("Peça confirmação uma vez só");
+  });
 });

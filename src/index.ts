@@ -33,7 +33,7 @@ function montarDeps(env: Env): DepsProcessamento {
     relogio,
     janelaInicio: config.janelaInicio,
     janelaFim: config.janelaFim,
-    limiteHistorico: Number(env.HISTORICO_LIMITE) || 20,
+    limiteHistorico: Number(env.HISTORICO_TURNOS) || 10,
   };
 }
 

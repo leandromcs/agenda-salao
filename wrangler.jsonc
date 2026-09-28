@@ -34,7 +34,7 @@
     "MODELO_CLAUDE": "claude-haiku-4-5",
     "JANELA_INICIO": "08:00",
     "JANELA_FIM": "20:00",
-    "HISTORICO_LIMITE": "20",
+    "HISTORICO_TURNOS": "10",
     "MODELO_RESUMO": "resumo_amanha",
     "MODELO_ALERTA": "alerta_sistema"
   }

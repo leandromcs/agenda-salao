@@ -63,7 +63,13 @@ describe("processarMensagem", () => {
     const { deps } = montar([msg("end_turn", [{ type: "text", text: "Oi! Em que posso ajudar?" }])]);
     expect(await processarMensagem(texto, deps, 1, 3)).toBe("respondida");
     expect(deps.whatsapp.enviarTexto).toHaveBeenCalledWith("5511988887777", "Oi! Em que posso ajudar?");
-    expect(deps.historico.salvarTurno).toHaveBeenCalledWith("oi", "Oi! Em que posso ajudar?", expect.any(Date));
+    expect(deps.historico.salvarTurno).toHaveBeenCalledWith(
+      [
+        { role: "user", content: "oi" },
+        { role: "assistant", content: "Oi! Em que posso ajudar?" },
+      ],
+      expect.any(Date),
+    );
   });
 
   it("responde direto quando o tipo não é suportado, sem chamar o Claude", async () => {

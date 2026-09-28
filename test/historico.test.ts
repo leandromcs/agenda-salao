@@ -25,19 +25,20 @@ describe("Historico", () => {
     expect((await h.ultimaDelaEm())?.toISOString()).toBe("2026-09-28T12:00:00.000Z");
   });
 
-  it("carrega os últimos turnos em ordem, começando por user", async () => {
+  it("guarda turnos completos (com ferramentas) e carrega os últimos em ordem", async () => {
     const agora = new Date("2026-09-28T13:00:00Z");
-    await h.salvarTurno("u1", "a1", agora);
-    await h.salvarTurno("u2", "a2", agora);
-    await h.salvarTurno("u3", "a3", agora);
-    expect(await h.carregar(4)).toEqual([
-      { papel: "user", conteudo: "u2" },
-      { papel: "assistant", conteudo: "a2" },
-      { papel: "user", conteudo: "u3" },
-      { papel: "assistant", conteudo: "a3" },
-    ]);
-    // Limite ímpar cortaria no meio: o primeiro turno "assistant" é descartado
-    expect((await h.carregar(3))[0]).toEqual({ papel: "user", conteudo: "u3" });
+    const turno = (n: number) => [
+      { role: "user" as const, content: `u${n}` },
+      { role: "assistant" as const, content: [{ type: "tool_use" as const, id: `t${n}`, name: "marcar", input: { n } }] },
+      { role: "user" as const, content: [{ type: "tool_result" as const, tool_use_id: `t${n}`, content: '{"ok":true}' }] },
+      { role: "assistant" as const, content: `a${n}` },
+    ];
+    await h.salvarTurno(turno(1), agora);
+    await h.salvarTurno(turno(2), agora);
+    await h.salvarTurno(turno(3), agora);
+    // O limite é em turnos inteiros: nunca corta uma chamada de ferramenta do seu resultado.
+    expect(await h.carregar(2)).toEqual([...turno(2), ...turno(3)]);
+    expect(await h.carregar(10)).toHaveLength(12);
   });
 
   it("lembra se uma mensagem já alterou a agenda", async () => {

@@ -19,7 +19,7 @@ export interface Env {
   MODELO_CLAUDE: string;
   JANELA_INICIO: string;
   JANELA_FIM: string;
-  HISTORICO_LIMITE: string;
+  HISTORICO_TURNOS: string;
   MODELO_RESUMO: string;
   MODELO_ALERTA: string;
 }

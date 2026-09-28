@@ -48,7 +48,15 @@ describe("responder", () => {
   it("devolve texto direto quando não há ferramenta", async () => {
     const { cliente, create } = claudeFalso([texto("Oi!")]);
     const r = await responder({ ...base, cliente, agenda: agendaFalsa() });
-    expect(r).toEqual({ texto: "Oi!", houveAlteracao: false, chamadas: [] });
+    expect(r).toEqual({
+      texto: "Oi!",
+      houveAlteracao: false,
+      chamadas: [],
+      registro: [
+        { role: "user", content: "marca a Ana" },
+        { role: "assistant", content: "Oi!" },
+      ],
+    });
     const p = create.mock.calls[0]![0];
     expect(p.model).toBe("claude-haiku-4-5");
     expect(p.system).toBe("SISTEMA");
@@ -56,21 +64,26 @@ describe("responder", () => {
     expect(p.tools?.length).toBe(6);
   });
 
-  it("inclui o histórico antes da entrada", async () => {
+  it("inclui o histórico completo (com as chamadas de ferramenta) antes da entrada", async () => {
     const { cliente, create } = claudeFalso([texto("ok")]);
-    await responder({
-      ...base,
-      historico: [
-        { papel: "user", conteudo: "u1" },
-        { papel: "assistant", conteudo: "a1" },
-      ],
-      cliente,
-      agenda: agendaFalsa(),
-    });
-    expect(create.mock.calls[0]![0].messages).toEqual([
-      { role: "user", content: "u1" },
-      { role: "assistant", content: "a1" },
+    const historico: Anthropic.MessageParam[] = [
+      { role: "user", content: "marca a Joana amanhã 10h, 1h" },
+      { role: "assistant", content: [{ type: "tool_use", id: "h1", name: "marcar", input: { cliente: "Joana" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "h1", content: '{"ok":true}' }] },
+      { role: "assistant", content: "✅ Marquei Joana" },
+    ];
+    await responder({ ...base, historico, cliente, agenda: agendaFalsa() });
+    expect(create.mock.calls[0]![0].messages).toEqual([...historico, { role: "user", content: "marca a Ana" }]);
+  });
+
+  it("devolve o registro do turno com as chamadas e resultados das ferramentas", async () => {
+    const { cliente } = claudeFalso([usar("t1", "marcar", { cliente: "Ana" }), texto("✅ Marquei Ana")]);
+    const r = await responder({ ...base, cliente, agenda: agendaFalsa() });
+    expect(r.registro).toEqual([
       { role: "user", content: "marca a Ana" },
+      { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: expect.stringContaining('"ok":true') }] },
+      { role: "assistant", content: "✅ Marquei Ana" },
     ]);
   });
 

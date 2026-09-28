@@ -1,5 +1,5 @@
 import type { NovoAgendamento } from "../src/agenda/repositorio";
-import type { Turno } from "../src/conversa/historico";
+import type Anthropic from "@anthropic-ai/sdk";
 import { PREFIXO_ENCAMINHADA } from "../src/conversa/normalizador";
 
 export interface Chamada {
@@ -10,7 +10,7 @@ export interface Chamada {
 export interface Caso {
   nome: string;
   agenda?: NovoAgendamento[];
-  historico?: Turno[];
+  historico?: Anthropic.MessageParam[];
   entrada: string;
   /** Devolve null se passou, ou a descrição da falha. */
   verificar(chamadas: Chamada[], texto: string): string | null;
@@ -79,8 +79,8 @@ export const CASOS: Caso[] = [
     nome: "remarcar depois do sim",
     agenda: [at("Ana", "2026-10-02", "14:30", "15:30")],
     historico: [
-      { papel: "user", conteudo: "passa a Ana de sexta para as 16h" },
-      { papel: "assistant", conteudo: "Vou mudar a Ana de sex 02/10 14:30–15:30 para 16:00–17:00. Confirma?" },
+      { role: "user", content: "passa a Ana de sexta para as 16h" },
+      { role: "assistant", content: "Vou mudar a Ana de sex 02/10 14:30–15:30 para 16:00–17:00. Confirma?" },
     ],
     entrada: "sim",
     verificar: (c) => {
@@ -92,8 +92,8 @@ export const CASOS: Caso[] = [
     nome: "desfazer",
     agenda: [at("Ana", "2026-10-02", "14:30", "15:30")],
     historico: [
-      { papel: "user", conteudo: "marca a Ana sexta 14:30, 1h" },
-      { papel: "assistant", conteudo: "✅ Marquei Ana, sex 02/10, 14:30–15:30." },
+      { role: "user", content: "marca a Ana sexta 14:30, 1h" },
+      { role: "assistant", content: "✅ Marquei Ana, sex 02/10, 14:30–15:30." },
     ],
     entrada: "desfaz",
     verificar: (c) => (de(c, "desfazer").length === 1 ? null : "não chamou desfazer"),
@@ -130,4 +130,71 @@ export const CASOS: Caso[] = [
     entrada: "qual a capital da França?",
     verificar: (c) => (alteracoes(c).length === 0 ? null : "alterou a agenda"),
   },
+  {
+    // Reprodução da conversa real do piloto (2026-09-28): depois de uma marcação de verdade,
+    // o assistente passou a responder "✅ Marquei…" sem chamar a ferramenta.
+    nome: "reprodução piloto: marcar depois de conflito recusado",
+    agenda: [at("Joana", "2026-09-29", "10:00", "11:00")],
+    historico: [
+      { role: "user", content: "Quem eu tenho para atender amanhã?" },
+      { role: "assistant", content: "Amanhã (terça 29/09) você não tem ninguém agendado ainda. Tá livre! 😊" },
+      { role: "user", content: "Marca a Joana amanhã às 10h" },
+      { role: "assistant", content: "Preciso de mais uma info: quanto tempo vai levar o atendimento da Joana? (em minutos)" },
+      { role: "user", content: "1h" },
+      { role: "assistant", content: "✅ Marquei Joana, ter 29/09, 10:00–11:00." },
+      { role: "user", content: "Carla amanhã 10h30 unha 45 min" },
+      { role: "assistant", content: "Não dá, tem conflito com a Joana (ter 29/09, 10:00–11:00). Quer marcar mesmo assim?" },
+    ],
+    entrada: "Não. Marque para às 11h então",
+    verificar: (c) => verificarCarla11h(c),
+  },
+  {
+    // A mesma conversa, com o histórico no formato novo: chamadas de ferramenta e resultados incluídos.
+    nome: "reprodução piloto com ferramentas no histórico",
+    agenda: [at("Joana", "2026-09-29", "10:00", "11:00")],
+    historico: [
+      { role: "user", content: "Quem eu tenho para atender amanhã?" },
+      { role: "assistant", content: [{ type: "tool_use", id: "h1", name: "consultar_agenda", input: { data_inicio: "2026-09-29", data_fim: "2026-09-29" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "h1", content: '{"ok":true,"agendamentos":[]}' }] },
+      { role: "assistant", content: "Amanhã (terça 29/09) você não tem ninguém agendado ainda. Tá livre! 😊" },
+      { role: "user", content: "Marca a Joana amanhã às 10h" },
+      { role: "assistant", content: "Preciso de mais uma info: quanto tempo vai levar o atendimento da Joana? (em minutos)" },
+      { role: "user", content: "1h" },
+      { role: "assistant", content: [{ type: "tool_use", id: "h2", name: "marcar", input: { cliente: "Joana", data: "2026-09-29", hora: "10:00", duracao_min: 60 } }] },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "h2",
+            content: '{"ok":true,"agendamento":{"id":1,"cliente":"Joana","data":"2026-09-29","dia":"ter 29/09","inicio":"10:00","fim":"11:00","servico":null,"tipo":"atendimento"}}',
+          },
+        ],
+      },
+      { role: "assistant", content: "✅ Marquei Joana, ter 29/09, 10:00–11:00." },
+      { role: "user", content: "Carla amanhã 10h30 unha 45 min" },
+      { role: "assistant", content: [{ type: "tool_use", id: "h3", name: "marcar", input: { cliente: "Carla", data: "2026-09-29", hora: "10:30", duracao_min: 45, servico: "unha" } }] },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "h3",
+            content: '{"ok":false,"erro":"Sobreposição: NÃO marquei. Pergunte se deve marcar mesmo assim.","conflitos":[{"id":1,"cliente":"Joana","data":"2026-09-29","dia":"ter 29/09","inicio":"10:00","fim":"11:00","servico":null,"tipo":"atendimento"}]}',
+          },
+        ],
+      },
+      { role: "assistant", content: "Não dá, tem conflito com a Joana (ter 29/09, 10:00–11:00). Quer marcar mesmo assim?" },
+    ],
+    entrada: "Não. Marque para às 11h então",
+    verificar: (c) => verificarCarla11h(c),
+  },
 ];
+
+function verificarCarla11h(c: Chamada[]): string | null {
+  const m = de(c, "marcar")[0]?.entrada;
+  if (!m) return "não chamou marcar";
+  return m.data === "2026-09-29" && m.hora === "11:00" && String(m.cliente).includes("Carla")
+    ? null
+    : `marcar com ${JSON.stringify(m)}`;
+}

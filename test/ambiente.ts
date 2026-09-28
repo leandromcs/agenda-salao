@@ -8,7 +8,7 @@ export const testEnv = env as unknown as {
 
 export async function limparBanco(): Promise<void> {
   await testEnv.DB.batch(
-    ["alteracoes", "agendamentos", "mensagens", "recebidas"].map((tabela) =>
+    ["alteracoes", "agendamentos", "turnos", "recebidas"].map((tabela) =>
       testEnv.DB.prepare(`DELETE FROM ${tabela}`),
     ),
   );

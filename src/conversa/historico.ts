@@ -1,7 +1,4 @@
-export interface Turno {
-  papel: "user" | "assistant";
-  conteudo: string;
-}
+import type Anthropic from "@anthropic-ai/sdk";
 
 export class Historico {
   constructor(private readonly db: D1Database) {}
@@ -37,22 +34,19 @@ export class Historico {
     return linha?.m ? new Date(linha.m) : null;
   }
 
-  async carregar(limite: number): Promise<Turno[]> {
+  /** Últimos turnos completos, em ordem. Cada turno começa pela mensagem dela, então o resultado começa por "user". */
+  async carregar(limiteTurnos: number): Promise<Anthropic.MessageParam[]> {
     const { results } = await this.db
-      .prepare("SELECT papel, conteudo FROM mensagens ORDER BY id DESC LIMIT ?1")
-      .bind(limite)
-      .all<Turno>();
-    const turnos = results.reverse();
-    // A API do Claude exige que a conversa comece com uma mensagem "user".
-    while (turnos.length > 0 && turnos[0]!.papel !== "user") turnos.shift();
-    return turnos;
+      .prepare("SELECT mensagens FROM turnos ORDER BY id DESC LIMIT ?1")
+      .bind(limiteTurnos)
+      .all<{ mensagens: string }>();
+    return results.reverse().flatMap((t) => JSON.parse(t.mensagens) as Anthropic.MessageParam[]);
   }
 
-  async salvarTurno(entrada: string, resposta: string, agora: Date): Promise<void> {
-    const quando = agora.toISOString();
-    await this.db.batch([
-      this.db.prepare("INSERT INTO mensagens (papel, conteudo, criado_em) VALUES ('user', ?1, ?2)").bind(entrada, quando),
-      this.db.prepare("INSERT INTO mensagens (papel, conteudo, criado_em) VALUES ('assistant', ?1, ?2)").bind(resposta, quando),
-    ]);
+  async salvarTurno(mensagens: Anthropic.MessageParam[], agora: Date): Promise<void> {
+    await this.db
+      .prepare("INSERT INTO turnos (mensagens, criado_em) VALUES (?1, ?2)")
+      .bind(JSON.stringify(mensagens), agora.toISOString())
+      .run();
   }
 }

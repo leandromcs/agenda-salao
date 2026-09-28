@@ -9,10 +9,16 @@ const AGORA = new Date("2026-09-28T13:00:00Z");
 const JANELA = { janelaInicio: "08:00", janelaFim: "20:00" };
 const MODELO = process.env.MODELO_CLAUDE ?? "claude-haiku-4-5";
 
+// EVAL_FILTRO: roda só os casos cujo nome contém o texto. EVAL_REPETICOES: quantas vezes rodar cada caso.
+const FILTRO = process.env.EVAL_FILTRO?.toLowerCase();
+const REPETICOES = Math.max(1, Number(process.env.EVAL_REPETICOES) || 1);
+const selecionados = CASOS.filter((c) => !FILTRO || c.nome.toLowerCase().includes(FILTRO));
+const execucoes = selecionados.flatMap((c) => Array.from({ length: REPETICOES }, () => c));
+
 const anthropic = new Anthropic();
 let falhas = 0;
 
-for (const caso of CASOS) {
+for (const caso of execucoes) {
   const repo = new RepositorioMemoria();
   for (const a of caso.agenda ?? []) await repo.marcar(a, AGORA.toISOString());
   const agenda = new AgendaServico(repo, JANELA, () => AGORA);
@@ -34,5 +40,5 @@ for (const caso of CASOS) {
   }
 }
 
-console.log(`\n${CASOS.length - falhas}/${CASOS.length} casos passaram com ${MODELO}.`);
+console.log(`\n${execucoes.length - falhas}/${execucoes.length} execuções passaram com ${MODELO}.`);
 process.exit(falhas > 0 ? 1 : 0);

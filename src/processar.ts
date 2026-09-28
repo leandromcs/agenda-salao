@@ -17,6 +17,7 @@ export interface DepsProcessamento {
   relogio: () => Date;
   janelaInicio: string;
   janelaFim: string;
+  /** Quantos turnos completos anteriores o assistente recebe. */
   limiteHistorico: number;
 }
 
@@ -86,7 +87,7 @@ export async function processarMensagem(
     if (!resposta.houveAlteracao && tentativa < maxTentativas) return "tentar-de-novo";
   }
   try {
-    await deps.historico.salvarTurno(normalizada.texto, resposta.texto, deps.relogio());
+    await deps.historico.salvarTurno(resposta.registro, deps.relogio());
   } catch (erro) {
     // Perder um turno do histórico é melhor que repetir a mensagem inteira.
     console.error("Falha ao salvar o turno", erro);

@@ -1,6 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { OperacoesAgenda } from "../agenda/servico";
-import type { Turno } from "../conversa/historico";
 import { executarFerramenta, FERRAMENTAS, FERRAMENTAS_QUE_ALTERAM } from "./ferramentas";
 
 export interface ClienteClaude {
@@ -13,7 +12,8 @@ export interface OpcoesResposta {
   cliente: ClienteClaude;
   modelo: string;
   sistema: string;
-  historico: Turno[];
+  /** Turnos anteriores completos, incluindo chamadas e resultados de ferramentas. */
+  historico: Anthropic.MessageParam[];
   entrada: string;
   agenda: OperacoesAgenda;
   maxIteracoes?: number;
@@ -25,6 +25,12 @@ export interface Resposta {
   texto: string;
   houveAlteracao: boolean;
   chamadas: { nome: string; entrada: unknown }[];
+  /**
+   * Mensagens deste turno para guardar no histórico: a entrada, as chamadas de ferramenta com
+   * seus resultados e o texto final. Guardar as chamadas é o que impede o modelo de "aprender"
+   * com o próprio histórico a confirmar alterações sem chamar a ferramenta.
+   */
+  registro: Anthropic.MessageParam[];
 }
 
 export class ErroAssistente extends Error {
@@ -45,10 +51,12 @@ function deuCerto(resultado: unknown): boolean {
 }
 
 export async function responder(o: OpcoesResposta): Promise<Resposta> {
-  const mensagens: Anthropic.MessageParam[] = [
-    ...o.historico.map((t): Anthropic.MessageParam => ({ role: t.papel, content: t.conteudo })),
-    { role: "user", content: o.entrada },
-  ];
+  const registro: Anthropic.MessageParam[] = [{ role: "user", content: o.entrada }];
+  const mensagens: Anthropic.MessageParam[] = [...o.historico, ...registro];
+  const registrar = (m: Anthropic.MessageParam) => {
+    mensagens.push(m);
+    registro.push(m);
+  };
   const chamadas: Resposta["chamadas"] = [];
   let houveAlteracao = false;
 
@@ -68,10 +76,12 @@ export async function responder(o: OpcoesResposta): Promise<Resposta> {
           .map((b) => b.text)
           .join("\n")
           .trim();
-        return { texto: texto || RESPOSTA_SEM_TEXTO, houveAlteracao, chamadas };
+        const final = texto || RESPOSTA_SEM_TEXTO;
+        registro.push({ role: "assistant", content: final });
+        return { texto: final, houveAlteracao, chamadas, registro };
       }
 
-      mensagens.push({ role: "assistant", content: r.content });
+      registrar({ role: "assistant", content: r.content });
       const resultados: Anthropic.ToolResultBlockParam[] = [];
       for (const bloco of r.content) {
         if (bloco.type !== "tool_use") continue;
@@ -99,9 +109,10 @@ export async function responder(o: OpcoesResposta): Promise<Resposta> {
           });
         }
       }
-      mensagens.push({ role: "user", content: resultados });
+      registrar({ role: "user", content: resultados });
     }
-    return { texto: RESPOSTA_SEM_TEXTO, houveAlteracao, chamadas };
+    registro.push({ role: "assistant", content: RESPOSTA_SEM_TEXTO });
+    return { texto: RESPOSTA_SEM_TEXTO, houveAlteracao, chamadas, registro };
   } catch (erro) {
     throw new ErroAssistente("Falha ao conversar com o Claude", houveAlteracao, { cause: erro });
   }

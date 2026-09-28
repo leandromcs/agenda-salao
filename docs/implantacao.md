@@ -19,9 +19,10 @@
 6. Em Business Settings → System Users, crie um usuário de sistema com a permissão `whatsapp_business_messaging` e gere um **token permanente** → segredo `WHATSAPP_TOKEN`.
 7. Em App Settings → Basic, copie o **App Secret** → segredo `WHATSAPP_APP_SECRET`.
 8. No WhatsApp Manager → Message Templates, crie dois modelos da categoria **Utility**, idioma **Portuguese (BR)**:
-   - `resumo_amanha` — corpo: `Resumo de amanhã ({{1}}): {{2}}` (exemplos: `ter 29/09`, `09:00–10:00 Maria — escova`)
-   - `alerta_sistema` — corpo: `Alerta da agenda: {{1}}` (exemplo: `Falha ao enviar o resumo de ter 29/09`)
-   Aguarde a aprovação dos dois.
+   - `resumo_amanha` — corpo: `Resumo de amanhã ({{1}}): {{2}}. Boa noite!` (exemplos: `ter 29/09`, `09:00–10:00 Maria — escova`)
+   - `alerta_sistema` — corpo: `Alerta da agenda: {{1}}. Veja os logs.` (exemplo: `Falha ao enviar o resumo de ter 29/09`)
+   A Meta recusa corpos que começam ou terminam com uma variável; por isso o texto fixo no fim. Aguarde a aprovação dos dois.
+9. Em Business Settings → WhatsApp Accounts → Payment settings, cadastre uma forma de pagamento. Mensagens de modelo são cobradas (centavos); sem pagamento cadastrado, o resumo fora da janela de 24h **e** o alerta de falha deixam de ser enviados.
 
 ## 4. Segredos
 Invente um texto aleatório para `WEBHOOK_VERIFY_TOKEN`. Durante o piloto, `NUMERO_DELA` é o **seu** número (o administrador).

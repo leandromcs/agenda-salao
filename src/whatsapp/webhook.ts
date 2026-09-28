@@ -38,8 +38,12 @@ function lista(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
 
+/** Tipos que não pedem resposta: reações (👍 numa confirmação) e avisos do próprio WhatsApp. */
+const TIPOS_IGNORADOS = new Set(["reaction", "system"]);
+
 function converter(bruta: MensagemBruta): MensagemRecebida | null {
   if (typeof bruta.id !== "string" || typeof bruta.from !== "string") return null;
+  if (typeof bruta.type === "string" && TIPOS_IGNORADOS.has(bruta.type)) return null;
   const base = {
     id: bruta.id,
     de: bruta.from,

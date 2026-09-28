@@ -44,6 +44,17 @@ describe("extrairMensagens", () => {
     ]);
   });
 
+  it("ignora reações e mensagens de sistema (um 👍 não merece resposta)", () => {
+    expect(
+      extrairMensagens(
+        envelope([
+          { from: "5511988887777", id: "r1", type: "reaction", reaction: { message_id: "w1", emoji: "👍" } },
+          { from: "5511988887777", id: "s1", type: "system", system: { body: "trocou de número" } },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
   it("ignora payloads de status e lixo", () => {
     expect(extrairMensagens({ entry: [{ changes: [{ value: { statuses: [{ id: "x" }] } }] }] })).toEqual([]);
     expect(extrairMensagens(null)).toEqual([]);

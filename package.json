@@ -1,5 +1,6 @@
 {
   "name": "agenda-salao",
+  "description": "Assistente de agenda para salão de beleza pelo WhatsApp, em Cloudflare Workers",
   "private": true,
   "type": "module",
   "scripts": {

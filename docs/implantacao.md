@@ -45,7 +45,7 @@ npx wrangler secret put NUMERO_DELA
 npx wrangler secret put NUMERO_ADMIN
 ```
 
-Números no formato internacional só com dígitos. **Use o formato que a Meta mostra no log** (`wa_id`): muitos números brasileiros aparecem **sem o nono dígito** (ex.: `556184099901` em vez de `5561984099901`). Mensagens da Meta para o número com o 9 podem dar "enviada" e nunca chegar.
+Números no formato internacional só com dígitos. **Use o formato que a Meta mostra no log** (`wa_id`): muitos números brasileiros aparecem **sem o nono dígito** (ex.: `551188887777` em vez de `5511988887777`). Mensagens da Meta para o número com o 9 podem dar "enviada" e nunca chegar.
 
 ## 5. Publicar e ligar o webhook
 1. `npm test && npm run typecheck && npx wrangler deploy` → anote a URL (`https://agenda-salao.<conta>.workers.dev`).

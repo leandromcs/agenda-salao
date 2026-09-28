@@ -1,3 +1,27 @@
+# Dependências
 node_modules/
+
+# Wrangler (estado local, banco local, cache)
 .wrangler/
+
+# Segredos locais
 .dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+
+# Logs e cobertura
+*.log
+npm-debug.log*
+coverage/
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Temporários
+*.tmp
+*.tmp.*

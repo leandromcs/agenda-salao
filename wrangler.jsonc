@@ -29,7 +29,7 @@
   "ai": { "binding": "AI" },
   "triggers": { "crons": ["0 23 * * *"] },
   "vars": {
-    "WHATSAPP_PHONE_NUMBER_ID": "preencher-na-tarefa-15",
+    "WHATSAPP_PHONE_NUMBER_ID": "1259114920629517",
     "GRAPH_API_VERSAO": "v23.0",
     "MODELO_CLAUDE": "claude-haiku-4-5",
     "JANELA_INICIO": "08:00",

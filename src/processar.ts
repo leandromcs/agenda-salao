@@ -8,7 +8,7 @@ import type { WhatsAppCliente } from "./whatsapp/cliente";
 import type { MensagemRecebida } from "./whatsapp/tipos";
 
 export interface DepsProcessamento {
-  historico: Pick<Historico, "carregar" | "salvarTurno">;
+  historico: Pick<Historico, "carregar" | "salvarTurno" | "marcarAlteracao" | "houveAlteracao">;
   agenda: OperacoesAgenda;
   whatsapp: Pick<WhatsAppCliente, "enviarTexto" | "baixarMidia">;
   transcritor: Transcritor;
@@ -23,7 +23,19 @@ export interface DepsProcessamento {
 export const RESPOSTA_ERRO =
   'Tive um problema aqui e não consegui terminar. Pode repetir? Se você tinha pedido para marcar ou mudar algo, confira antes com "o que tenho no dia?".';
 
+export const RESPOSTA_ERRO_APOS_ALTERACAO =
+  'Tive um problema no meio do caminho, mas a agenda já foi alterada. Não repita o pedido: confira antes com "o que tenho no dia?".';
+
 export type ResultadoProcessamento = "respondida" | "tentar-de-novo";
+
+/** Envio que nunca lança: usado quando uma nova tentativa da fila seria pior que perder o aviso. */
+async function avisar(deps: DepsProcessamento, para: string, texto: string): Promise<void> {
+  try {
+    await deps.whatsapp.enviarTexto(para, texto);
+  } catch (erro) {
+    console.error("Falha ao enviar aviso", erro);
+  }
+}
 
 export async function processarMensagem(
   msg: MensagemRecebida,
@@ -31,6 +43,12 @@ export async function processarMensagem(
   tentativa: number,
   maxTentativas: number,
 ): Promise<ResultadoProcessamento> {
+  // Uma tentativa anterior já mexeu na agenda: repetir o pedido poderia marcar em dobro.
+  if (tentativa > 1 && (await deps.historico.houveAlteracao(msg.id))) {
+    await avisar(deps, msg.de, RESPOSTA_ERRO_APOS_ALTERACAO);
+    return "respondida";
+  }
+
   const normalizada = await normalizar(msg, {
     baixarMidia: (id) => deps.whatsapp.baixarMidia(id),
     transcritor: deps.transcritor,
@@ -51,12 +69,13 @@ export async function processarMensagem(
       historico,
       entrada: normalizada.texto,
       agenda: deps.agenda,
+      aoAlterar: () => deps.historico.marcarAlteracao(msg.id),
     });
   } catch (erro) {
     console.error("Falha ao gerar resposta", erro);
     const alterou = erro instanceof ErroAssistente && erro.houveAlteracao;
     if (!alterou && tentativa < maxTentativas) return "tentar-de-novo";
-    await deps.whatsapp.enviarTexto(msg.de, RESPOSTA_ERRO);
+    await avisar(deps, msg.de, alterou ? RESPOSTA_ERRO_APOS_ALTERACAO : RESPOSTA_ERRO);
     return "respondida";
   }
 
@@ -66,6 +85,11 @@ export async function processarMensagem(
     console.error("Falha ao enviar resposta", erro);
     if (!resposta.houveAlteracao && tentativa < maxTentativas) return "tentar-de-novo";
   }
-  await deps.historico.salvarTurno(normalizada.texto, resposta.texto, deps.relogio());
+  try {
+    await deps.historico.salvarTurno(normalizada.texto, resposta.texto, deps.relogio());
+  } catch (erro) {
+    // Perder um turno do histórico é melhor que repetir a mensagem inteira.
+    console.error("Falha ao salvar o turno", erro);
+  }
   return "respondida";
 }

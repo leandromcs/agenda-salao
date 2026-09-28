@@ -119,4 +119,15 @@ describe("responder", () => {
     expect(erro).toBeInstanceOf(ErroAssistente);
     expect((erro as ErroAssistente).houveAlteracao).toBe(true);
   });
+
+  it("avisa cada alteração bem-sucedida assim que acontece", async () => {
+    const aoAlterar = vi.fn(async () => undefined);
+    const { cliente } = claudeFalso([
+      usar("t1", "consultar_agenda", {}),
+      usar("t2", "marcar", { cliente: "Ana" }),
+      texto("ok"),
+    ]);
+    await responder({ ...base, cliente, agenda: agendaFalsa(), aoAlterar });
+    expect(aoAlterar).toHaveBeenCalledOnce();
+  });
 });

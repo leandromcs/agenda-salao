@@ -19,6 +19,19 @@ export class Historico {
     await this.db.prepare("DELETE FROM recebidas WHERE whatsapp_id = ?1").bind(whatsappId).run();
   }
 
+  /** Marca, na hora, que esta mensagem já alterou a agenda. */
+  async marcarAlteracao(whatsappId: string): Promise<void> {
+    await this.db.prepare("UPDATE recebidas SET alterou = 1 WHERE whatsapp_id = ?1").bind(whatsappId).run();
+  }
+
+  async houveAlteracao(whatsappId: string): Promise<boolean> {
+    const linha = await this.db
+      .prepare("SELECT alterou FROM recebidas WHERE whatsapp_id = ?1")
+      .bind(whatsappId)
+      .first<{ alterou: number }>();
+    return linha?.alterou === 1;
+  }
+
   async ultimaDelaEm(): Promise<Date | null> {
     const linha = await this.db.prepare("SELECT MAX(criado_em) AS m FROM recebidas").first<{ m: string | null }>();
     return linha?.m ? new Date(linha.m) : null;

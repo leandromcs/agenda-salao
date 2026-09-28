@@ -17,6 +17,8 @@ export interface OpcoesResposta {
   entrada: string;
   agenda: OperacoesAgenda;
   maxIteracoes?: number;
+  /** Chamado logo depois de cada alteração na agenda (ou tentativa de alteração que falhou). */
+  aoAlterar?: () => Promise<void>;
 }
 
 export interface Resposta {
@@ -77,12 +79,18 @@ export async function responder(o: OpcoesResposta): Promise<Resposta> {
         const altera = FERRAMENTAS_QUE_ALTERAM.has(bloco.name);
         try {
           const resultado = await executarFerramenta(o.agenda, bloco.name, bloco.input);
-          if (altera && deuCerto(resultado)) houveAlteracao = true;
+          if (altera && deuCerto(resultado)) {
+            houveAlteracao = true;
+            await o.aoAlterar?.();
+          }
           resultados.push({ type: "tool_result", tool_use_id: bloco.id, content: JSON.stringify(resultado) });
         } catch (erro) {
           console.error(`Falha na ferramenta ${bloco.name}`, erro);
           // Por segurança, uma ferramenta que altera e falhou conta como possível alteração.
-          if (altera) houveAlteracao = true;
+          if (altera) {
+            houveAlteracao = true;
+            await o.aoAlterar?.();
+          }
           resultados.push({
             type: "tool_result",
             tool_use_id: bloco.id,

@@ -39,4 +39,12 @@ describe("Historico", () => {
     // Limite ímpar cortaria no meio: o primeiro turno "assistant" é descartado
     expect((await h.carregar(3))[0]).toEqual({ papel: "user", conteudo: "u3" });
   });
+
+  it("lembra se uma mensagem já alterou a agenda", async () => {
+    await h.registrarRecebida("wamid.9", new Date("2026-09-28T13:00:00Z"));
+    expect(await h.houveAlteracao("wamid.9")).toBe(false);
+    await h.marcarAlteracao("wamid.9");
+    expect(await h.houveAlteracao("wamid.9")).toBe(true);
+    expect(await h.houveAlteracao("wamid.inexistente")).toBe(false);
+  });
 });

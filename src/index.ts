@@ -21,7 +21,8 @@ function criarWhatsApp(env: Env): WhatsAppCliente {
 function montarDeps(env: Env): DepsProcessamento {
   const relogio = () => new Date();
   const config = { janelaInicio: env.JANELA_INICIO, janelaFim: env.JANELA_FIM };
-  const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  // Limites curtos para a chamada não ultrapassar o tempo da fila (os padrões do SDK chegam a 10 min × 3).
+  const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: 60_000, maxRetries: 1 });
   return {
     historico: new Historico(env.DB),
     agenda: new AgendaServico(new AgendaRepositorio(env.DB), config, relogio),

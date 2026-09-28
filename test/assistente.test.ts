@@ -86,11 +86,11 @@ describe("responder", () => {
   });
 
   it("devolve o registro do turno com as chamadas e resultados das ferramentas", async () => {
-    const { cliente } = claudeFalso([usar("t1", "marcar", { cliente: "Ana" }), texto("✅ Marquei Ana")]);
+    const { cliente } = claudeFalso([usar("t1", "marcar", { cliente: "Ana", servico: "escova" }), texto("✅ Marquei Ana")]);
     const r = await responder({ ...base, cliente, agenda: agendaFalsa() });
     expect(r.registro).toEqual([
       { role: "user", content: "marca a Ana" },
-      { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana" } }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana", servico: "escova" } }] },
       { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: expect.stringContaining('"ok":true') }] },
       { role: "assistant", content: "✅ Marquei Ana" },
     ]);
@@ -98,11 +98,11 @@ describe("responder", () => {
 
   it("executa ferramentas, devolve os resultados e marca alteração", async () => {
     const agenda = agendaFalsa();
-    const { cliente, create } = claudeFalso([usar("t1", "marcar", { cliente: "Ana" }), texto("✅ Marquei Ana")]);
+    const { cliente, create } = claudeFalso([usar("t1", "marcar", { cliente: "Ana", servico: "escova" }), texto("✅ Marquei Ana")]);
     const r = await responder({ ...base, cliente, agenda });
     expect(r.texto).toBe("✅ Marquei Ana");
     expect(r.houveAlteracao).toBe(true);
-    expect(r.chamadas).toEqual([{ nome: "marcar", entrada: { cliente: "Ana" } }]);
+    expect(r.chamadas).toEqual([{ nome: "marcar", entrada: { cliente: "Ana", servico: "escova" } }]);
     const segunda = create.mock.calls[1]![0].messages;
     const resultado = segunda[segunda.length - 1]!;
     expect(resultado.role).toBe("user");
@@ -136,7 +136,7 @@ describe("responder", () => {
   });
 
   it("falha da API vira ErroAssistente informando se já houve alteração", async () => {
-    const { cliente } = claudeFalso([usar("t1", "marcar", { cliente: "Ana" }), new Error("529 overloaded")]);
+    const { cliente } = claudeFalso([usar("t1", "marcar", { cliente: "Ana", servico: "escova" }), new Error("529 overloaded")]);
     const erro = await responder({ ...base, cliente, agenda: agendaFalsa() }).catch((e: unknown) => e);
     expect(erro).toBeInstanceOf(ErroAssistente);
     expect((erro as ErroAssistente).houveAlteracao).toBe(true);
@@ -146,7 +146,7 @@ describe("responder", () => {
     const aoAlterar = vi.fn(async () => undefined);
     const { cliente } = claudeFalso([
       usar("t1", "consultar_agenda", {}),
-      usar("t2", "marcar", { cliente: "Ana" }),
+      usar("t2", "marcar", { cliente: "Ana", servico: "escova" }),
       texto("ok"),
     ]);
     await responder({ ...base, cliente, agenda: agendaFalsa(), aoAlterar });
@@ -167,7 +167,7 @@ describe("responder", () => {
       const agenda = agendaFalsa();
       const { cliente, create } = claudeFalso([
         texto("✅ Marquei Ana, sex 02/10"),
-        usar("t1", "marcar", { cliente: "Ana" }),
+        usar("t1", "marcar", { cliente: "Ana", servico: "escova" }),
         texto("✅ Marquei Ana, sex 02/10, 14:00–15:00"),
       ]);
       const r = await responder({ ...base, cliente, agenda });

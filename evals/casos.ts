@@ -215,10 +215,13 @@ CASOS.push(
   {
     nome: "fora do horário padrão: marca e avisa",
     entrada: "marca a Maria amanhã às 22h, 2 horas, sem serviço",
+    // Aceita as duas formas de "avisar e permitir": marcar com aviso, ou perguntar antes citando o horário.
     verificar: (c, t) => {
       const m = de(c, "marcar")[0]?.entrada;
-      if (m?.hora !== "22:00") return `marcar com ${JSON.stringify(m)}`;
-      return /⚠️|fora do hor/i.test(t) ? null : "não avisou que está fora do horário padrão";
+      const avisou = /⚠️|fora do hor|hor[áa]rio padr[ãa]o|20h|20:00/i.test(t);
+      if (m?.hora === "22:00") return avisou ? null : "marcou sem avisar que está fora do horário padrão";
+      if (alteracoes(c).length === 0 && avisou && t.includes("?")) return null;
+      return `nem marcou às 22:00 nem perguntou citando o horário (marcar: ${JSON.stringify(m)})`;
     },
   },
 );

@@ -95,7 +95,7 @@ describe("processarMensagem", () => {
 
   it("não tenta de novo se já marcou algo antes da falha (evita marcação em dobro)", async () => {
     const { deps, agenda } = montar([
-      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana" } }]),
+      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana", servico: "escova" } }]),
       new Error("overloaded"),
     ]);
     expect(await processarMensagem(texto, deps, 1, 3)).toBe("respondida");
@@ -112,7 +112,7 @@ describe("processarMensagem", () => {
 
   it("se o envio falhar depois de uma alteração, salva o turno e não repete", async () => {
     const { deps } = montar([
-      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana" } }]),
+      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana", servico: "escova" } }]),
       msg("end_turn", [{ type: "text", text: "✅ Marquei Ana" }]),
     ]);
     vi.mocked(deps.whatsapp.enviarTexto).mockRejectedValueOnce(new Error("WhatsApp 500"));
@@ -122,7 +122,7 @@ describe("processarMensagem", () => {
 
   it("registra no banco, na hora, que a mensagem alterou a agenda", async () => {
     const { deps } = montar([
-      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana" } }]),
+      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana", servico: "escova" } }]),
       msg("end_turn", [{ type: "text", text: "✅ Marquei Ana" }]),
     ]);
     await processarMensagem(texto, deps, 1, 3);
@@ -139,7 +139,7 @@ describe("processarMensagem", () => {
 
   it("se salvar o turno falhar depois de uma alteração, não pede nova tentativa", async () => {
     const { deps } = montar([
-      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana" } }]),
+      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana", servico: "escova" } }]),
       msg("end_turn", [{ type: "text", text: "✅ Marquei Ana" }]),
     ]);
     vi.mocked(deps.historico.salvarTurno).mockRejectedValueOnce(new Error("D1 fora"));
@@ -148,7 +148,7 @@ describe("processarMensagem", () => {
 
   it("se o aviso de erro falhar depois de uma alteração, não lança (a fila não repete)", async () => {
     const { deps } = montar([
-      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana" } }]),
+      msg("tool_use", [{ type: "tool_use", id: "t1", name: "marcar", input: { cliente: "Ana", servico: "escova" } }]),
       new Error("overloaded"),
     ]);
     vi.mocked(deps.whatsapp.enviarTexto).mockRejectedValueOnce(new Error("WhatsApp 500"));

@@ -53,7 +53,11 @@ export const FERRAMENTAS: Anthropic.Tool[] = [
         data: DATA,
         hora: HORA,
         duracao_min: { type: "integer", description: "Duração em minutos (informada pela dona)." },
-        servico: { type: "string", description: "Opcional: serviço (ex.: escova)." },
+        servico: {
+          type: "string",
+          description:
+            'Serviço (ex.: escova). Se a dona não disse, NÃO invente: pergunte "Quer adicionar o serviço?". Envie "" (vazio) só se ela disse que não quer. Bloqueios não precisam.',
+        },
         observacao: { type: "string", description: "Opcional: observação livre." },
         tipo: { type: "string", enum: ["atendimento", "bloqueio"], description: "Padrão: atendimento." },
         confirmado_sobreposicao: { type: "boolean", description: "true só depois que a dona confirmar a sobreposição." },
@@ -120,6 +124,13 @@ export async function executarFerramenta(agenda: OperacoesAgenda, nome: string, 
     case "horarios_livres":
       return await agenda.livres(e as unknown as EntradaLivres);
     case "marcar":
+      // Serviço é opcional, mas ela decide: sem o campo, o modelo precisa perguntar antes (como a duração).
+      if (e.servico === undefined && e.tipo !== "bloqueio") {
+        return {
+          ok: false,
+          erro: 'NÃO marquei: falta saber do serviço. Pergunte à dona "Quer adicionar o serviço?" (junto com o que mais faltar). Se ela disser que não, chame "marcar" de novo com servico = "" (vazio).',
+        };
+      }
       return await agenda.marcar(e as unknown as EntradaMarcar);
     case "remarcar":
       return await agenda.remarcar(e as unknown as EntradaRemarcar);

@@ -28,7 +28,7 @@ describe("ferramentas", () => {
     const a = agendaFalsa();
     await executarFerramenta(a, "consultar_agenda", { data_inicio: "2026-10-02", data_fim: "2026-10-02" });
     await executarFerramenta(a, "horarios_livres", { data: "2026-10-02", duracao_min: 60 });
-    await executarFerramenta(a, "marcar", { cliente: "Ana" });
+    await executarFerramenta(a, "marcar", { cliente: "Ana", servico: "escova" });
     await executarFerramenta(a, "remarcar", { id: 1 });
     await executarFerramenta(a, "desmarcar", { id: 1 });
     await executarFerramenta(a, "atualizar", { id: 1, servico: "unha" });
@@ -36,16 +36,30 @@ describe("ferramentas", () => {
     expect(await executarFerramenta(a, "desfazer", {})).toEqual({ ok: true, descricao: "feito" });
     expect(a.consultar).toHaveBeenCalledWith({ data_inicio: "2026-10-02", data_fim: "2026-10-02" });
     expect(a.livres).toHaveBeenCalledOnce();
-    expect(a.marcar).toHaveBeenCalledWith({ cliente: "Ana" });
+    expect(a.marcar).toHaveBeenCalledWith({ cliente: "Ana", servico: "escova" });
     expect(a.remarcar).toHaveBeenCalledOnce();
     expect(a.desmarcar).toHaveBeenCalledOnce();
+  });
+
+  it("marcar sem o campo serviço não marca: manda perguntar (como a duração)", async () => {
+    const a = agendaFalsa();
+    const r = await executarFerramenta(a, "marcar", { cliente: "Joana", data: "2026-09-29", hora: "10:00", duracao_min: 60 });
+    expect(r).toMatchObject({ ok: false, erro: expect.stringContaining("Quer adicionar o serviço?") });
+    expect(a.marcar).not.toHaveBeenCalled();
+  });
+
+  it("marcar com serviço vazio (ela não quer) ou bloqueio sem serviço segue normalmente", async () => {
+    const a = agendaFalsa();
+    await executarFerramenta(a, "marcar", { cliente: "Joana", data: "2026-09-29", hora: "10:00", duracao_min: 60, servico: "" });
+    await executarFerramenta(a, "marcar", { cliente: "Médico", data: "2026-09-29", hora: "08:00", duracao_min: 720, tipo: "bloqueio" });
+    expect(a.marcar).toHaveBeenCalledTimes(2);
   });
 
   it("responde erro para ferramenta desconhecida ou entrada nula", async () => {
     expect(await executarFerramenta(agendaFalsa(), "apagar_tudo", {})).toEqual({ ok: false, erro: "Ferramenta desconhecida: apagar_tudo" });
     const a = agendaFalsa();
-    await executarFerramenta(a, "marcar", null);
-    expect(a.marcar).toHaveBeenCalledWith({});
+    await executarFerramenta(a, "consultar_agenda", null);
+    expect(a.consultar).toHaveBeenCalledWith({});
   });
 });
 

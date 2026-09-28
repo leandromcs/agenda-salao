@@ -1,6 +1,13 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
-import { ErroAssistente, responder, RESPOSTA_SEM_TEXTO, type ClienteClaude } from "../src/assistente/assistente";
+import {
+  afirmaAlteracao,
+  ErroAssistente,
+  responder,
+  RESPOSTA_NAO_REGISTREI,
+  RESPOSTA_SEM_TEXTO,
+  type ClienteClaude,
+} from "../src/assistente/assistente";
 import type { OperacoesAgenda } from "../src/agenda/servico";
 
 function msg(stop_reason: string, content: unknown[]): Anthropic.Message {
@@ -52,6 +59,7 @@ describe("responder", () => {
       texto: "Oi!",
       houveAlteracao: false,
       chamadas: [],
+      correcoes: 0,
       registro: [
         { role: "user", content: "marca a Ana" },
         { role: "assistant", content: "Oi!" },
@@ -142,5 +150,50 @@ describe("responder", () => {
     ]);
     await responder({ ...base, cliente, agenda: agendaFalsa(), aoAlterar });
     expect(aoAlterar).toHaveBeenCalledOnce();
+  });
+
+  describe("trava contra confirmação sem ferramenta", () => {
+    it("reconhece afirmações de alteração, mas não negações", () => {
+      expect(afirmaAlteracao("✅ Marquei Carla, ter 29/09")).toBe(true);
+      expect(afirmaAlteracao("Pronto, cancelei o atendimento da Carla.")).toBe(true);
+      expect(afirmaAlteracao("Desfeito! Voltei a Ana para 14:00.")).toBe(true);
+      expect(afirmaAlteracao("Não marquei: tem conflito com a Joana. Marco mesmo assim?")).toBe(false);
+      expect(afirmaAlteracao("Ainda não marquei nada. Qual o horário?")).toBe(false);
+      expect(afirmaAlteracao("Amanhã você tem Joana às 10:00.")).toBe(false);
+    });
+
+    it("se o modelo confirma sem chamar ferramenta, corrige e ele chama a ferramenta", async () => {
+      const agenda = agendaFalsa();
+      const { cliente, create } = claudeFalso([
+        texto("✅ Marquei Ana, sex 02/10"),
+        usar("t1", "marcar", { cliente: "Ana" }),
+        texto("✅ Marquei Ana, sex 02/10, 14:00–15:00"),
+      ]);
+      const r = await responder({ ...base, cliente, agenda });
+      expect(agenda.marcar).toHaveBeenCalledOnce();
+      expect(r.texto).toBe("✅ Marquei Ana, sex 02/10, 14:00–15:00");
+      expect(r.correcoes).toBe(1);
+      // O mock guarda referência ao mesmo array, que continua crescendo: conferir pela posição.
+      // [0] entrada, [1] confirmação falsa, [2] correção
+      const mensagens = create.mock.calls[1]![0].messages;
+      expect(mensagens[1]).toMatchObject({ role: "assistant" });
+      expect(JSON.stringify(mensagens[2])).toContain("NADA foi alterado");
+      // A resposta falsa e a correção não vão para o histórico
+      expect(JSON.stringify(r.registro)).not.toContain("NADA foi alterado");
+      expect(r.registro.map((m) => m.role)).toEqual(["user", "assistant", "user", "assistant"]);
+    });
+
+    it("se insistir na confirmação falsa, responde que não registrou", async () => {
+      const { cliente } = claudeFalso([texto("✅ Marquei Ana"), texto("✅ Marquei Ana, pode confiar")]);
+      const r = await responder({ ...base, cliente, agenda: agendaFalsa() });
+      expect(r.texto).toBe(RESPOSTA_NAO_REGISTREI);
+      expect(r.houveAlteracao).toBe(false);
+    });
+
+    it("não interfere quando a ferramenta foi chamada ou quando é uma negação", async () => {
+      const { cliente, create } = claudeFalso([texto("Não marquei: tem conflito com a Joana. Marco mesmo assim?")]);
+      await responder({ ...base, cliente, agenda: agendaFalsa() });
+      expect(create).toHaveBeenCalledOnce();
+    });
   });
 });

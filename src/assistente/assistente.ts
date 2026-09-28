@@ -25,6 +25,8 @@ export interface Resposta {
   texto: string;
   houveAlteracao: boolean;
   chamadas: { nome: string; entrada: unknown }[];
+  /** Quantas vezes a trava corrigiu uma confirmação sem ferramenta neste turno. */
+  correcoes: number;
   /**
    * Mensagens deste turno para guardar no histórico: a entrada, as chamadas de ferramenta com
    * seus resultados e o texto final. Guardar as chamadas é o que impede o modelo de "aprender"
@@ -45,6 +47,29 @@ export class ErroAssistente extends Error {
 }
 
 export const RESPOSTA_SEM_TEXTO = "Desculpe, me perdi aqui. Pode repetir de outro jeito?";
+export const RESPOSTA_NAO_REGISTREI = "Opa, não consegui registrar isso na agenda — nada foi alterado. Pode pedir de novo?";
+
+const CORRECAO =
+  "[Verificação automática do sistema, não é a dona] Sua última resposta afirma que a agenda foi alterada, " +
+  "mas nenhuma ferramenta de alteração foi executada com sucesso neste turno, então NADA foi alterado. " +
+  "Se a dona pediu uma alteração e você tem todos os dados, chame agora a ferramenta correspondente. " +
+  "Se faltar alguma informação, pergunte. Não afirme que algo foi feito sem a ferramenta devolver ok: true.";
+
+// Palavra inteira (com letras acentuadas contando como letra), sem diferenciar maiúsculas.
+const VERBOS_DE_ALTERACAO =
+  /(?<!\p{L})(marquei|remarquei|desmarquei|cancelei|bloqueei|desbloqueei|desfiz|desfeit[oa]|atualizei|alterei|adicionei|agendei|registrei|troquei|mudei|corrigi|editei|reativei)(?!\p{L})/giu;
+// "não marquei", "ainda não marquei", "não te marquei"...
+const NEGACAO_ANTES = /n[ãa]o\s+(\p{L}+\s+)?$/u;
+
+/** A resposta afirma ter alterado a agenda? Negações ("não marquei") não contam. */
+export function afirmaAlteracao(texto: string): boolean {
+  if (texto.includes("✅")) return true;
+  for (const m of texto.matchAll(VERBOS_DE_ALTERACAO)) {
+    const antes = texto.slice(Math.max(0, m.index - 15), m.index).toLowerCase();
+    if (!NEGACAO_ANTES.test(antes)) return true;
+  }
+  return false;
+}
 
 function deuCerto(resultado: unknown): boolean {
   return typeof resultado === "object" && resultado !== null && (resultado as { ok?: unknown }).ok === true;
@@ -59,6 +84,7 @@ export async function responder(o: OpcoesResposta): Promise<Resposta> {
   };
   const chamadas: Resposta["chamadas"] = [];
   let houveAlteracao = false;
+  let correcoes = 0;
 
   try {
     for (let i = 0; i < (o.maxIteracoes ?? 8); i++) {
@@ -76,9 +102,20 @@ export async function responder(o: OpcoesResposta): Promise<Resposta> {
           .map((b) => b.text)
           .join("\n")
           .trim();
-        const final = texto || RESPOSTA_SEM_TEXTO;
+        let final = texto || RESPOSTA_SEM_TEXTO;
+        // Trava: confirmação de alteração sem nenhuma ferramenta de alteração neste turno.
+        if (!houveAlteracao && afirmaAlteracao(final)) {
+          console.warn(JSON.stringify({ evento: "confirmacao_sem_ferramenta", texto: final }));
+          if (correcoes === 0) {
+            correcoes++;
+            // A resposta falsa e a correção vão só para esta conversa com o modelo, não para o histórico.
+            mensagens.push({ role: "assistant", content: r.content }, { role: "user", content: CORRECAO });
+            continue;
+          }
+          final = RESPOSTA_NAO_REGISTREI;
+        }
         registro.push({ role: "assistant", content: final });
-        return { texto: final, houveAlteracao, chamadas, registro };
+        return { texto: final, houveAlteracao, chamadas, correcoes, registro };
       }
 
       registrar({ role: "assistant", content: r.content });
@@ -112,7 +149,7 @@ export async function responder(o: OpcoesResposta): Promise<Resposta> {
       registrar({ role: "user", content: resultados });
     }
     registro.push({ role: "assistant", content: RESPOSTA_SEM_TEXTO });
-    return { texto: RESPOSTA_SEM_TEXTO, houveAlteracao, chamadas, registro };
+    return { texto: RESPOSTA_SEM_TEXTO, houveAlteracao, chamadas, correcoes, registro };
   } catch (erro) {
     throw new ErroAssistente("Falha ao conversar com o Claude", houveAlteracao, { cause: erro });
   }
